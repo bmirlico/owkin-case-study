@@ -20,22 +20,37 @@ The model decides whether to call a tool, which one, and — for the chained que
 | 1 | *How can you help me?* | Plain text answer describing capabilities and the available cancer indications. No tool calls. |
 | 2 | *What are the main genes involved in lung cancer?* | One tool call: `get_targets("lung")` → answer with the gene list. |
 | 3 | *What is the median value expression of genes involved in breast cancer?* | **Chained**: `get_targets("breast")` → `get_expressions([...])` → answer. |
-| 4 | *What is the median value expression of genes involved in esophageal cancer?* | **Chained**: same pattern as #3 for esophageal. |
+| 4 | *What is the median value expression of genes involved in esophageal cancer?* | The dataset doesn't include esophageal — the model says so explicitly and lists the 10 indications it does cover, **without inventing data**. |
 
-The chaining in queries 3 and 4 is the agentic behaviour: the model — not the application code — decides to call `get_targets` first, read the returned list, then call `get_expressions` with it.
+The chaining in query 3 is the agentic behaviour: the model — not the application code — decides to call `get_targets` first, read the returned list, then call `get_expressions` with it.
 
-Sample output (query 3, against the bundled synthetic CSV):
+Query 4 happens to be a useful demonstration of the *opposite* signal: when asked about a cancer that isn't in the dataset, the model refuses to call any tool and instead lists the available indications. This is driven by the system prompt's enumeration of valid cancer types and the explicit instruction not to invent values.
+
+### Sample output (query 3 against the real CSV)
 
 ```
 🔧 get_targets({"cancer_name":"breast"})
-↳ get_targets → ["BRCA1","BRCA2","HER2","ESR1","PIK3CA","PALB2"]
-🔧 get_expressions({"genes":["BRCA1","BRCA2","HER2","ESR1","PIK3CA","PALB2"]})
-↳ get_expressions → {"BRCA1":7.81,"BRCA2":6.47,"HER2":8.05,"ESR1":9.41,"PIK3CA":7.18,"PALB2":5.63}
+↳ get_targets → ["BRCA2","BRCA1","TP53","GATA3","CDH1","ESR1","MAP3K1","HER2","PIK3CA","AKT1"]
+🔧 get_expressions({"genes":["BRCA2","BRCA1","TP53","GATA3","CDH1","ESR1","MAP3K1","HER2","PIK3CA","AKT1"], "cancer_name":"breast"})
+↳ get_expressions → {"BRCA2":0.032,"BRCA1":0.094,"TP53":0.233,"GATA3":0.602,"CDH1":0.561,"ESR1":0.716,"MAP3K1":0.701,"HER2":0.42,"PIK3CA":0.449,"AKT1":0.278}
 
-The median expression values for the genes involved in breast cancer are:
-- BRCA1: 7.81  · BRCA2: 6.47  · HER2: 8.05
-- ESR1:  9.41  · PIK3CA: 7.18 · PALB2: 5.63
+| Gene   | Median Expression |
+|--------|-------------------|
+| BRCA2  | 0.032 |
+| BRCA1  | 0.094 |
+| TP53   | 0.233 |
+| GATA3  | 0.602 |
+| CDH1   | 0.561 |
+| ESR1   | 0.716 |
+| MAP3K1 | 0.701 |
+| HER2   | 0.420 |
+| PIK3CA | 0.449 |
+| AKT1   | 0.278 |
 ```
+
+### Available cancer indications (from the bundled CSV)
+
+`breast, colorectal, gastric, glioblastoma, lung, melanoma, ovarian, pancreatic, prostate, renal` — 10 indications, 81 (cancer, gene) rows.
 
 ---
 
@@ -67,7 +82,7 @@ pip install -r requirements.txt
 pytest
 ```
 
-> ⚠️ **About the CSV.** The `data/owkin_take_home_data.csv` shipped here is a small **synthetic** placeholder with the exact schema (`cancer_indication, gene, median_value`) and includes the cancer types the reference queries hit (`lung`, `breast`, `esophageal`, plus a handful of others). Drop in the real `owkin_take_home_data.csv` from the brief at the same path and everything will work without a code change.
+The CSV (`data/owkin_take_home_data.csv`) is the file provided with the brief — schema `cancer_indication, gene, median_value`, 10 cancer indications, 81 rows.
 
 ---
 
@@ -100,9 +115,9 @@ Chained-query flow (queries 3 and 4):
 ```
 user: "median expression of genes in breast cancer?"
   └─► Claude → tool_use: get_targets(cancer_name="breast")
-        └─► pandas filter → ["BRCA1","BRCA2",...]
-  └─► Claude (sees gene list) → tool_use: get_expressions(genes=[...])
-        └─► pandas filter → {"BRCA1":7.81,...}
+        └─► pandas filter → ["BRCA2","BRCA1","TP53",...]
+  └─► Claude → tool_use: get_expressions(genes=[...], cancer_name="breast")
+        └─► pandas filter (gene ∈ list AND cancer = "breast") → {"BRCA2":0.032,...}
   └─► Claude → end_turn: natural-language summary
 ```
 
@@ -135,6 +150,45 @@ owkin-agent/
 ```
 
 ---
+
+## Deviation from the brief — `get_expressions(genes, cancer_name)`
+
+The brief provides this reference function:
+
+```python
+def get_expressions(genes: List[str]) -> Dict[str, float]:
+    subset = df[df['gene'].isin(genes)]
+    return dict(zip(subset['gene'], subset['median_value']))
+```
+
+Looks innocuous, but with the real CSV it returns **wrong values** for any gene that appears in more than one cancer indication (which is most of the interesting ones — TP53 is in 8 cancers, KRAS in 5, BRCA1/BRCA2/PIK3CA/CDH1 in multiple). The reason is two compounding bugs:
+
+1. `df[df['gene'].isin(genes)]` filters by gene only — the cancer context from the preceding `get_targets` call is *lost* between the two function calls (the chain only passes the gene list, not the cancer it came from).
+2. `dict(zip(...))` over a subset with duplicate keys silently keeps **only the last occurrence** in CSV order, so values for breast genes get overwritten by values from cancers that come later in the file.
+
+Concrete example before the fix, for *"median expression of genes involved in breast cancer"*:
+
+| Gene  | Expected (breast) | Returned | Source row in CSV |
+|-------|-------------------|----------|-------------------|
+| BRCA2 | 0.032             | 0.112    | pancreatic        |
+| BRCA1 | 0.094             | 0.158    | ovarian           |
+| TP53  | 0.233             | 0.373    | renal             |
+| CDH1  | 0.561             | 0.834    | gastric           |
+| PIK3CA| 0.449             | 0.762    | ovarian           |
+
+5 values out of 10 contaminated. The agentic chain itself (`get_targets` → `get_expressions`) was working correctly — the bug is in the second function's contract.
+
+**Fix.** Added `cancer_name: str` as a required argument to `get_expressions`, and the system prompt instructs the model to pass the same `cancer_name` to both tools when chaining. The function then filters jointly on `gene ∈ genes` AND `cancer_indication == cancer_name`, removing the ambiguity at the source.
+
+This is a deliberate departure from the brief's literal signature. The alternative would have been to keep the broken signature and document the bug in the README, which I considered (it's a great panel-discussion topic) — but for an FDE deliverable I'd rather ship a demo that returns *correct* values to a clinician and own the deviation. The reference function is a clear case of an under-specified contract that breaks on real data; calling it out and fixing it is part of the FDE job.
+
+### Note on the query "median value expression of genes…"
+
+The phrasing in queries 3 and 4 is ambiguous: it can mean either *(a)* "for each gene, its median expression value" → a per-gene dict, or *(b)* "the median (one number) across the gene-level expression values" → a scalar. I went with interpretation *(a)* because:
+
+- The CSV column is already called `median_value` — each row stores a precomputed median (presumably across patients). "Median value expression" describes what the column is, not an aggregation to apply.
+- The brief's reference signature returns `Dict[str, float]`, not `float`.
+- Per-gene is more useful clinically: a biologist wants to see each gene labelled, not a scalar that mixes BRCA1 with HER2.
 
 ## AI components — design and trade-offs
 
