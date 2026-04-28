@@ -110,7 +110,11 @@ async def test_run_agent_chains_targets_then_expressions(df):
         ),
         FakeMessage(
             content=[
-                FakeToolUseBlock("t2", "get_expressions", {"genes": ["EGFR", "KRAS"]})
+                FakeToolUseBlock(
+                    "t2",
+                    "get_expressions",
+                    {"genes": ["EGFR", "KRAS"], "cancer_name": "lung"},
+                )
             ],
             stop_reason="tool_use",
         ),
@@ -137,6 +141,7 @@ async def test_run_agent_chains_targets_then_expressions(df):
     tool_calls = [e for e in events if e["type"] == "tool_call"]
     assert [t["name"] for t in tool_calls] == ["get_targets", "get_expressions"]
     assert tool_calls[1]["input"]["genes"] == ["EGFR", "KRAS"]
+    assert tool_calls[1]["input"]["cancer_name"] == "lung"
     assert events[-1]["type"] == "done"
 
 
