@@ -56,17 +56,28 @@ Query 4 happens to be a useful demonstration of the *opposite* signal: when aske
 
 ## Quick start
 
-### With Docker (preferred)
+### With Docker Compose (preferred — one command)
 
 ```bash
 cp .env.example .env       # then put your real ANTHROPIC_API_KEY in .env
-docker build -t owkin-agent .
-docker run -p 8000:8000 --env-file .env owkin-agent
+docker compose up --build
 ```
 
-Open http://localhost:8000.
+Open http://localhost:8000. Stop with `Ctrl+C`, clean up with `docker compose down`.
 
-### Without Docker
+The `compose.yaml` wires the `Dockerfile` build, the `.env` injection, and the
+`8000:8000` port mapping in one place so the panel doesn't have to remember flags.
+
+### With plain `docker build` / `docker run`
+
+Same result, useful if you want to see the Docker primitives Compose wraps:
+
+```bash
+docker build -t owkin-agent .
+docker run --rm -p 8000:8000 --env-file .env owkin-agent
+```
+
+### Without Docker (fastest dev loop)
 
 ```bash
 python3.12 -m venv .venv && source .venv/bin/activate
@@ -127,6 +138,7 @@ user: "median expression of genes in breast cancer?"
 owkin-agent/
 ├── README.md
 ├── Dockerfile
+├── compose.yaml           # one-command run: `docker compose up --build`
 ├── .dockerignore
 ├── .gitignore
 ├── .env.example
