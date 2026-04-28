@@ -75,13 +75,21 @@
     </main>
 
     <script>
-      const sessionId = crypto.randomUUID();
+      function makeSessionId() {
+        if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+          return crypto.randomUUID();
+        }
+        // Fallback for older browsers
+        return "sess-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+      }
+
+      const sessionId = makeSessionId();
       const chatEl = document.getElementById("chat");
       const form = document.getElementById("form");
       const input = document.getElementById("input");
       const sendBtn = document.getElementById("send");
 
-      function scroll() {
+      function scrollChat() {
         window.requestAnimationFrame(() =>
           chatEl.scrollIntoView({ behavior: "smooth", block: "end" })
         );
@@ -92,7 +100,7 @@
         wrap.className = "self-end max-w-[80%] bg-indigo-600 text-white rounded-2xl rounded-br-sm px-4 py-2";
         wrap.textContent = text;
         chatEl.appendChild(wrap);
-        scroll();
+        scrollChat();
       }
 
       function addAssistantContainer() {
@@ -109,7 +117,7 @@
         wrap.appendChild(bubble);
 
         chatEl.appendChild(wrap);
-        scroll();
+        scrollChat();
         return { toolStrip, bubble };
       }
 
@@ -118,7 +126,7 @@
         pill.className = "pill" + (kind === "result" ? " result" : "");
         pill.textContent = label;
         strip.appendChild(pill);
-        scroll();
+        scrollChat();
       }
 
       function fmtToolCall(name, inputObj) {
@@ -183,14 +191,14 @@
 
               if (evt.type === "text") {
                 bubble.textContent += evt.content;
-                scroll();
+                scrollChat();
               } else if (evt.type === "tool_call") {
                 addPill(toolStrip, fmtToolCall(evt.name, evt.input), "call");
               } else if (evt.type === "tool_result") {
                 addPill(toolStrip, fmtToolResult(evt.name, evt.result), "result");
               } else if (evt.type === "error") {
                 bubble.textContent += `\n[error] ${evt.content}`;
-                scroll();
+                scrollChat();
               }
             }
           }
