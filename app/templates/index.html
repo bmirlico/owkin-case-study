@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Owkin Agent POC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .pill {
+        display: inline-block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        background: #f3f4f6;
+        color: #374151;
+        padding: 0.125rem 0.5rem;
+        border-radius: 9999px;
+        border: 1px solid #e5e7eb;
+        margin: 0.125rem 0.25rem 0.125rem 0;
+      }
+      .pill.result {
+        background: #ecfdf5;
+        color: #065f46;
+        border-color: #a7f3d0;
+      }
+      .bubble {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+    <header class="border-b bg-white">
+      <div class="max-w-3xl mx-auto px-4 py-4">
+        <h1 class="text-lg font-semibold">Owkin Agent POC</h1>
+        <p class="text-sm text-slate-500">
+          Ask about genes and median expression values across cancer indications.
+        </p>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-3xl w-full mx-auto px-4 py-6 flex flex-col gap-4">
+      <div
+        id="chat"
+        class="flex-1 flex flex-col gap-4 overflow-y-auto pb-4"
+        style="min-height: 50vh"
+      ></div>
+
+      <form id="form" class="flex gap-2 sticky bottom-4 bg-slate-50 pt-2">
+        <input
+          id="input"
+          type="text"
+          class="flex-1 rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="e.g. What is the median expression of genes involved in breast cancer?"
+          autocomplete="off"
+        />
+        <button
+          id="send"
+          type="submit"
+          class="rounded-lg bg-indigo-600 text-white px-4 py-2 font-medium hover:bg-indigo-700 disabled:opacity-50"
+        >
+          Send
+        </button>
+      </form>
+
+      <div class="text-xs text-slate-400">
+        Try:
+        <button class="suggest underline" data-q="How can you help me?">How can you help me?</button>
+        ·
+        <button class="suggest underline" data-q="What are the main genes involved in lung cancer?">main genes in lung cancer</button>
+        ·
+        <button class="suggest underline" data-q="What is the median value expression of genes involved in breast cancer?">median expression for breast cancer</button>
+        ·
+        <button class="suggest underline" data-q="What is the median value expression of genes involved in esophageal cancer?">median expression for esophageal cancer</button>
+      </div>
+    </main>
+
+    <script>
+      const sessionId = crypto.randomUUID();
+      const chatEl = document.getElementById("chat");
+      const form = document.getElementById("form");
+      const input = document.getElementById("input");
+      const sendBtn = document.getElementById("send");
+
+      function scroll() {
+        window.requestAnimationFrame(() =>
+          chatEl.scrollIntoView({ behavior: "smooth", block: "end" })
+        );
+      }
+
+      function addUserBubble(text) {
+        const wrap = document.createElement("div");
+        wrap.className = "self-end max-w-[80%] bg-indigo-600 text-white rounded-2xl rounded-br-sm px-4 py-2";
+        wrap.textContent = text;
+        chatEl.appendChild(wrap);
+        scroll();
+      }
+
+      function addAssistantContainer() {
+        const wrap = document.createElement("div");
+        wrap.className = "self-start max-w-[90%] flex flex-col gap-1";
+
+        const toolStrip = document.createElement("div");
+        toolStrip.className = "flex flex-wrap";
+        wrap.appendChild(toolStrip);
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-2";
+        bubble.textContent = "";
+        wrap.appendChild(bubble);
+
+        chatEl.appendChild(wrap);
+        scroll();
+        return { toolStrip, bubble };
+      }
+
+      function addPill(strip, label, kind) {
+        const pill = document.createElement("span");
+        pill.className = "pill" + (kind === "result" ? " result" : "");
+        pill.textContent = label;
+        strip.appendChild(pill);
+        scroll();
+      }
+
+      function fmtToolCall(name, inputObj) {
+        let inputStr = "";
+        try {
+          inputStr = JSON.stringify(inputObj);
+        } catch {
+          inputStr = String(inputObj);
+        }
+        return `🔧 ${name}(${inputStr})`;
+      }
+
+      function fmtToolResult(name, resultStr) {
+        let preview = resultStr;
+        if (preview && preview.length > 120) {
+          preview = preview.slice(0, 117) + "…";
+        }
+        return `↳ ${name} → ${preview}`;
+      }
+
+      async function send(message) {
+        addUserBubble(message);
+        const { toolStrip, bubble } = addAssistantContainer();
+        sendBtn.disabled = true;
+        input.disabled = true;
+
+        try {
+          const res = await fetch("/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: sessionId, message }),
+          });
+          if (!res.ok || !res.body) {
+            bubble.textContent = `Error: ${res.status} ${res.statusText}`;
+            return;
+          }
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = "";
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+
+            let idx;
+            while ((idx = buf.indexOf("\n\n")) !== -1) {
+              const frame = buf.slice(0, idx);
+              buf = buf.slice(idx + 2);
+              const line = frame.split("\n").find((l) => l.startsWith("data:"));
+              if (!line) continue;
+              const payload = line.slice(5).trim();
+              if (!payload) continue;
+
+              let evt;
+              try {
+                evt = JSON.parse(payload);
+              } catch {
+                continue;
+              }
+
+              if (evt.type === "text") {
+                bubble.textContent += evt.content;
+                scroll();
+              } else if (evt.type === "tool_call") {
+                addPill(toolStrip, fmtToolCall(evt.name, evt.input), "call");
+              } else if (evt.type === "tool_result") {
+                addPill(toolStrip, fmtToolResult(evt.name, evt.result), "result");
+              } else if (evt.type === "error") {
+                bubble.textContent += `\n[error] ${evt.content}`;
+                scroll();
+              }
+            }
+          }
+        } catch (err) {
+          bubble.textContent = `Network error: ${err}`;
+        } finally {
+          sendBtn.disabled = false;
+          input.disabled = false;
+          input.focus();
+        }
+      }
+
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const msg = input.value.trim();
+        if (!msg) return;
+        input.value = "";
+        send(msg);
+      });
+
+      document.querySelectorAll(".suggest").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const q = btn.dataset.q;
+          if (q) send(q);
+        });
+      });
+
+      input.focus();
+    </script>
+  </body>
+</html>
