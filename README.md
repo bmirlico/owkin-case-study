@@ -168,8 +168,8 @@ The brief gives `get_expressions(genes) → dict(zip(...))`. With the real CSV, 
 - **Tool use, not RAG.** Dataset is small, fully structured, deterministic. Embedding 81 rows would add latency, cost, and a hallucination surface. Native tool calls are exact, auditable (each call is rendered as a pill in the UI), and composable (the chained query passes one tool's output as the next tool's input).
 - **`claude-sonnet-4-6`.** Balances cost and instruction-following for a 2-tool surface. Opus triples the cost with no measurable quality gain on a deterministic problem. Haiku is borderline on multi-step chaining.
 - **Sessions.** In-memory `dict[session_id, list[message]]` on `app.state`, keyed by a UUID generated client-side. Wiped on restart, no multi-instance support — acceptable for a POC; Redis/Postgres was a deliberate scope-cut.
-- **Streaming.** Server-Sent Events with typed events (`text`, `tool_call`, `tool_result`, `done`, `error`). Frontend uses `fetch` + `ReadableStream` (not `EventSource`, so we can POST a JSON body). Backend uses `AsyncAnthropic` natively async — no thread wrapping, the event loop is never blocked.
-- **Limitations.** In-memory sessions wiped on restart, hard API dependency (no offline fallback), prompt injection mitigated only by the system prompt enumeration of valid cancer types.
+- **Streaming.** Server-Sent Events with typed events (`text`, `tool_call`, `tool_result`, `done`, `error`). Frontend uses `fetch` + `ReadableStream`. Backend uses `AsyncAnthropic` natively async — no thread wrapping, the event loop is never blocked.
+- **Limitations.** In-memory sessions wiped on restart.
 
 ---
 
