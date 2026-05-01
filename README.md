@@ -1,10 +1,10 @@
-# Owkin Agent POC
+# 🔬 Owkin Agent POC
 
 A 4-hour proof of concept for the Owkin Forward Deployed Engineer take-home: a web app where a non-technical user asks natural-language questions about a cancer-genomics CSV, and an LLM agent orchestrates two Python functions to answer.
 
 ---
 
-## Demo
+## 🎬 Demo
 
 
 
@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/c462e697-8697-4a7e-a7dd-7681eb97c5b8
 
 ---
 
-## What it does
+## 🧬 What it does
 
 The app exposes a chat UI in the browser. The user types a question; the backend forwards it to Claude (`claude-sonnet-4-6`) using the **Anthropic native tool-use API**, with two tools registered:
 
@@ -52,7 +52,7 @@ Available cancer indications in the bundled CSV: `breast, colorectal, gastric, g
 
 ---
 
-## Project layout
+## 📁 Project layout
 
 ```
 owkin-agent/
@@ -85,7 +85,7 @@ owkin-agent/
 
 ---
 
-## Quick start
+## 🚀 Quick start
 
 ### With Docker Compose (preferred — one command)
 
@@ -121,7 +121,7 @@ pytest
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```
 ┌────────────┐      POST /chat (JSON)        ┌─────────────────────────────┐
@@ -158,7 +158,7 @@ user: "median expression of genes in breast cancer?"
 
 ---
 
-## Deviation from the brief — `get_expressions(genes, cancer_name)`
+## ⚠️ Deviation from the brief — `get_expressions(genes, cancer_name)`
 
 The brief gives `get_expressions(genes) → dict(zip(...))`. With the real CSV, several genes (TP53 in 8 cancers, KRAS in 5, BRCA1/BRCA2/PIK3CA/CDH1 in multiple) appear in multiple indications — `dict(zip(...))` silently keeps the *last* row in CSV order, returning values from the wrong cancer. For breast: 5/10 contaminated.
 
@@ -167,7 +167,7 @@ The brief gives `get_expressions(genes) → dict(zip(...))`. With the real CSV, 
 
 ---
 
-## AI components — design and trade-offs
+## 🧠 AI components — design and trade-offs
 
 - **Tool use, not RAG.** Dataset is small, fully structured, deterministic. Embedding 81 rows would add latency, cost, and a hallucination surface. Native tool calls are exact, auditable (each call is rendered as a pill in the UI), and composable (the chained query passes one tool's output as the next tool's input).
 - **`claude-sonnet-4-6`.** Balances cost and instruction-following for a 2-tool surface. Opus triples the cost with no measurable quality gain on a deterministic problem. Haiku is borderline on multi-step chaining.
@@ -177,7 +177,7 @@ The brief gives `get_expressions(genes) → dict(zip(...))`. With the real CSV, 
 
 ---
 
-## AI-assisted coding — pros and cons
+## 🤖 AI-assisted coding — pros and cons
 
 **Pros.** Scaffolding (FastAPI lifespan, SSE plumbing, Jinja2, Docker, the Anthropic tool-use loop boilerplate) is mechanical and the assistant produces it cleanly on the first pass. Saved real time on the parts of the brief that are well-documented patterns.
 
