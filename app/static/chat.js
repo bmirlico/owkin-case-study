@@ -1,20 +1,8 @@
-function makeSessionId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  // Fallback for older browsers / non-secure contexts (e.g. http://0.0.0.0)
-  return `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 function renderMarkdown(md) {
-  if (typeof marked === "undefined" || typeof DOMPurify === "undefined") {
-    // Graceful fallback if a CDN is unreachable: escape and return plain text.
-    return md.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
   return DOMPurify.sanitize(marked.parse(md));
 }
 
-const sessionId = makeSessionId();
+const sessionId = crypto.randomUUID();
 const chatEl = document.getElementById("chat");
 const form = document.getElementById("form");
 const input = document.getElementById("input");
