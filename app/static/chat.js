@@ -3,7 +3,15 @@ function makeSessionId() {
     return crypto.randomUUID();
   }
   // Fallback for older browsers / non-secure contexts (e.g. http://0.0.0.0)
-  return "sess-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  return `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function renderMarkdown(md) {
+  if (typeof marked === "undefined" || typeof DOMPurify === "undefined") {
+    // Graceful fallback if a CDN is unreachable: escape and return plain text.
+    return md.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  return DOMPurify.sanitize(marked.parse(md));
 }
 
 const sessionId = makeSessionId();
@@ -35,13 +43,19 @@ function addAssistantContainer() {
   wrap.appendChild(toolStrip);
 
   const bubble = document.createElement("div");
-  bubble.className = "bubble bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-2";
-  bubble.textContent = "";
+  bubble.className =
+    "bubble prose prose-sm max-w-none bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-2";
+  bubble.dataset.md = "";
   wrap.appendChild(bubble);
 
   chatEl.appendChild(wrap);
   scrollChat();
   return { toolStrip, bubble };
+}
+
+function appendMarkdown(bubble, chunk) {
+  bubble.dataset.md = (bubble.dataset.md || "") + chunk;
+  bubble.innerHTML = renderMarkdown(bubble.dataset.md);
 }
 
 function addPill(strip, label, kind) {
@@ -83,7 +97,7 @@ async function send(message) {
       body: JSON.stringify({ session_id: sessionId, message }),
     });
     if (!res.ok || !res.body) {
-      bubble.textContent = `Error: ${res.status} ${res.statusText}`;
+      appendMarkdown(bubble, `**Error:** ${res.status} ${res.statusText}`);
       return;
     }
 
@@ -113,20 +127,20 @@ async function send(message) {
         }
 
         if (evt.type === "text") {
-          bubble.textContent += evt.content;
+          appendMarkdown(bubble, evt.content);
           scrollChat();
         } else if (evt.type === "tool_call") {
           addPill(toolStrip, fmtToolCall(evt.name, evt.input), "call");
         } else if (evt.type === "tool_result") {
           addPill(toolStrip, fmtToolResult(evt.name, evt.result), "result");
         } else if (evt.type === "error") {
-          bubble.textContent += `\n[error] ${evt.content}`;
+          appendMarkdown(bubble, `\n\n**[error]** ${evt.content}`);
           scrollChat();
         }
       }
     }
   } catch (err) {
-    bubble.textContent = `Network error: ${err}`;
+    appendMarkdown(bubble, `**Network error:** ${err}`);
   } finally {
     sendBtn.disabled = false;
     input.disabled = false;
