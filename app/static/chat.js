@@ -48,7 +48,7 @@ function appendMarkdown(bubble, chunk) {
 
 function addPill(strip, label, kind) {
   const pill = document.createElement("span");
-  pill.className = "pill" + (kind === "result" ? " result" : "");
+  pill.className = `pill${kind === "result" ? " result" : ""}`;
   pill.textContent = label;
   strip.appendChild(pill);
   scrollChat();
@@ -67,7 +67,7 @@ function fmtToolCall(name, inputObj) {
 function fmtToolResult(name, resultStr) {
   let preview = resultStr;
   if (preview && preview.length > 120) {
-    preview = preview.slice(0, 117) + "…";
+    preview = `${preview.slice(0, 117)}…`;
   }
   return `↳ ${name} → ${preview}`;
 }
@@ -98,8 +98,9 @@ async function send(message) {
       if (done) break;
       buf += decoder.decode(value, { stream: true });
 
-      let idx;
-      while ((idx = buf.indexOf("\n\n")) !== -1) {
+      while (true) {
+        const idx = buf.indexOf("\n\n");
+        if (idx === -1) break;
         const frame = buf.slice(0, idx);
         buf = buf.slice(idx + 2);
         const line = frame.split("\n").find((l) => l.startsWith("data:"));
