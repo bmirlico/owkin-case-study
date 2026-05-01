@@ -6,7 +6,11 @@ A 4-hour proof of concept for the Owkin Forward Deployed Engineer take-home: a w
 
 ## Demo
 
-[Watch the walkthrough](TODO_VIDEO_URL)
+
+
+https://github.com/user-attachments/assets/c462e697-8697-4a7e-a7dd-7681eb97c5b8
+
+
 
 ---
 
