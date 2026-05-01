@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any, AsyncIterator
 
 import pandas as pd
@@ -48,8 +47,7 @@ async def run_agent(
     system_prompt = build_system_prompt(cancer_types)
 
     for _ in range(max_tool_iterations):
-        response = await asyncio.to_thread(
-            client.messages.create,
+        response = await client.messages.create(
             model=model_name,
             max_tokens=1024,
             system=system_prompt,

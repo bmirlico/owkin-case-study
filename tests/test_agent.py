@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
@@ -60,7 +60,7 @@ def test_system_prompt_lists_cancer_types():
 @pytest.mark.asyncio
 async def test_run_agent_dispatches_tool_and_emits_done(df):
     client = MagicMock()
-    client.messages.create.side_effect = [
+    client.messages.create = AsyncMock(side_effect=[
         FakeMessage(
             content=[FakeToolUseBlock("tool_1", "get_targets", {"cancer_name": "lung"})],
             stop_reason="tool_use",
@@ -69,7 +69,7 @@ async def test_run_agent_dispatches_tool_and_emits_done(df):
             content=[FakeTextBlock("EGFR and KRAS are involved in lung cancer.")],
             stop_reason="end_turn",
         ),
-    ]
+    ])
 
     messages: list = [{"role": "user", "content": "what genes are in lung cancer?"}]
     events = []
@@ -103,7 +103,7 @@ async def test_run_agent_dispatches_tool_and_emits_done(df):
 @pytest.mark.asyncio
 async def test_run_agent_chains_targets_then_expressions(df):
     client = MagicMock()
-    client.messages.create.side_effect = [
+    client.messages.create = AsyncMock(side_effect=[
         FakeMessage(
             content=[FakeToolUseBlock("t1", "get_targets", {"cancer_name": "lung"})],
             stop_reason="tool_use",
@@ -122,7 +122,7 @@ async def test_run_agent_chains_targets_then_expressions(df):
             content=[FakeTextBlock("Median expressions: EGFR 8.4, KRAS 6.7.")],
             stop_reason="end_turn",
         ),
-    ]
+    ])
 
     messages: list = [
         {"role": "user", "content": "median expression of genes in lung cancer?"}
@@ -148,9 +148,11 @@ async def test_run_agent_chains_targets_then_expressions(df):
 @pytest.mark.asyncio
 async def test_run_agent_caps_iterations(df):
     client = MagicMock()
-    client.messages.create.return_value = FakeMessage(
-        content=[FakeToolUseBlock("t", "get_targets", {"cancer_name": "lung"})],
-        stop_reason="tool_use",
+    client.messages.create = AsyncMock(
+        return_value=FakeMessage(
+            content=[FakeToolUseBlock("t", "get_targets", {"cancer_name": "lung"})],
+            stop_reason="tool_use",
+        )
     )
 
     events = []
