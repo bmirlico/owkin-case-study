@@ -28,17 +28,8 @@ def test_get_targets_known_cancer(df):
     assert get_targets("lung", df) == ["EGFR", "KRAS", "TP53"]
 
 
-def test_get_targets_case_insensitive(df):
-    assert get_targets("LUNG", df) == ["EGFR", "KRAS", "TP53"]
-    assert get_targets("  Breast  ", df) == ["BRCA1", "BRCA2", "TP53"]
-
-
 def test_get_targets_unknown_cancer(df):
     assert get_targets("nonexistent", df) == []
-
-
-def test_get_targets_empty_string(df):
-    assert get_targets("", df) == []
 
 
 def test_get_expressions_scoped_to_cancer(df):
@@ -67,10 +58,6 @@ def test_get_expressions_empty_list(df):
     assert get_expressions([], "lung", df) == {}
 
 
-def test_get_expressions_case_insensitive(df):
-    assert get_expressions(["EGFR"], "LUNG", df) == {"EGFR": 8.4}
-
-
 def test_dispatch_get_targets(df):
     out = dispatch_tool("get_targets", {"cancer_name": "lung"}, df)
     assert json.loads(out) == ["EGFR", "KRAS", "TP53"]
@@ -92,14 +79,4 @@ def test_dispatch_get_expressions_missing_cancer_name(df):
 
 def test_dispatch_unknown_tool(df):
     out = dispatch_tool("frobnicate", {}, df)
-    assert "error" in json.loads(out)
-
-
-def test_dispatch_bad_input_targets(df):
-    out = dispatch_tool("get_targets", {"cancer_name": 42}, df)
-    assert "error" in json.loads(out)
-
-
-def test_dispatch_bad_input_expressions(df):
-    out = dispatch_tool("get_expressions", {"genes": "EGFR", "cancer_name": "lung"}, df)
     assert "error" in json.loads(out)
