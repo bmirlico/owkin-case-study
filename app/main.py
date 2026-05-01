@@ -5,6 +5,7 @@ from pathlib import Path
 from anthropic import Anthropic
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
@@ -13,6 +14,7 @@ from .config import load_settings
 from .data import get_available_cancer_types, load_dataframe
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+STATIC_DIR = Path(__file__).parent / "static"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
@@ -31,6 +33,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Owkin Agent POC", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 class ChatRequest(BaseModel):
